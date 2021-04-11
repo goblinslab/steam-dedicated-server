@@ -2,16 +2,48 @@ name: valheim
 on:
   push:
     branches:
-      - main
+      - master
     paths:
       - "Dockerfile"
       - ".github/workflows/valheim.yml"
       - "valheim/**"
   workflow_dispatch:
+    inputs:
+      force_rebuild:
+        description: "Force rebuild even if tag already exist"
+        required: false
+        default: "false"
 
 jobs:
+  set-outputs:
+    name: Set Outputs
+
+    runs-on: ubuntu-latest
+
+    outputs:
+      STEAM_APP_NAME: ${{ steps.compute.outputs.STEAM_APP_NAME }}
+      STEAM_APP_ID: ${{ steps.compute.outputs.STEAM_APP_ID }}
+      BUILD_ID: ${{ steps.compute.outputs.BUILD_ID }}
+
+    steps:
+      - id: compute
+        run: |
+          STEAM_APP_NAME=valheim
+          STEAM_APP_ID=896660
+          echo "::set-output name=STEAM_APP_NAME::$STEAM_APP_NAME"
+          echo "::set-output name=STEAM_APP_ID::$STEAM_APP_ID"
+          BUILD_ID=$(docker run steamcmd/steamcmd:ubuntu +login anonymous +app_info_update 1 +app_info_print ${STEAM_APP_ID} +quit | grep -EA 1000 "^\s+\"branches\"$" | grep -EA 5 "^\s+\"public\"$" | grep -m 1 -EB 10 "^\s+}$" | grep -E "^\s+\"buildid\"\s+" | tr '[:blank:]"' ' ' | tr -s ' ' | cut -d' ' -f3)
+          if ! curl --silent -f -lSL https://hub.docker.com/v2/repositories/goblinslab/steam-dedicated-server/tags/${STEAM_APP_NAME}-${BUILD_ID} || ${{ github.event.inputs.force_rebuild }} == "true"
+          then
+            echo "::set-output name=BUILD_ID::${BUILD_ID}"
+            echo "There is a new version of ${STEAM_APP_NAME} : ${BUILD_ID}"
+          fi
+
   build:
     runs-on: ubuntu-latest
+    if: needs.set-outputs.outputs.BUILD_ID != '' || github.event.inputs.force_rebuild == 'true'
+
+    needs: [set-outputs]
     
     steps:
       - uses: actions/checkout@v2
@@ -27,37 +59,9 @@ jobs:
         with:
           context: .
           push: true
-          build-args: 
-            - STEAM_APP_NAME=${GITHUB_WORKFLOW}
-            - STEAM_APP_ID=896660
-          tags: goblinslab/steam-dedicated-server:${GITHUB_WORKFLOW}-latest
-
-      #- name: ...
-      #  run: |
-
-     #       - name: Cache Docker layers
-     #         uses: actions/cache@v2.1.4
-     #         with:
-     #           path: /tmp/.buildx-cache
-     #           key: ${{ runner.os }}-buildx-${{ github.sha }}
-     #           restore-keys: |
-     #             ${{ runner.os }}-buildx-
-     #       - name: Log in to GitHub Container Registry
-     #         if: github.event_name != 'pull_request'
-     #         uses: docker/login-action@v1
-     #         with:
-     #           registry: ghcr.io
-     #           username: ${{ github.actor }}
-     #           password: ${{ secrets.GHCR_PAT }}
-     # 
-     #       - name: Build and push Docker image
-     #         uses: docker/build-push-action@v2
-     #         with:
-     #           context: .
-     #           file: ./Dockerfile
-     #           platforms: linux/amd64
-     #           push: ${{ github.event_name != 'pull_request' }}
-     #           build-args: SOURCE_COMMIT=${{ github.sha }}
-     #           tags: ghcr.io/lloesche/valheim-server:latest
-     #           cache-from: type=local,src=/tmp/.buildx-cache
-     #           cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
+          build-args: |
+            STEAM_APP_NAME=${{ needs.set-outputs.outputs.STEAM_APP_NAME }}
+            STEAM_APP_ID=${{ needs.set-outputs.outputs.STEAM_APP_ID }}
+          tags: |
+            goblinslab/steam-dedicated-server:valheim-latest
+            goblinslab/steam-dedicated-server:valheim-${{ needs.set-outputs.outputs.BUILD_ID }}

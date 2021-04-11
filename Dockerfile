@@ -21,7 +21,7 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 # Install
-RUN steamcmd +@sSteamCmdForcePlatformType linux +login anonymous +force_install_dir /app +app_update ${STEAM_APP_ID} validate +quit
+RUN steamcmd +@sSteamCmdForcePlatformType linux +login anonymous +force_install_dir /app/${STEAM_APP_NAME} +app_update ${STEAM_APP_ID} validate +quit
 
 # Customize
 COPY ${STEAM_APP_NAME} /app/custom
