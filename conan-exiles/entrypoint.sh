@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# Check if file is already init
-if [ -d /app/conan-exiles/ConanSandbox/Saved/Config ] || mv /app/conan-exiles/ConanSandbox/Init /app/conan-exiles/ConanSandbox/Saved
+# Check if world files are already init
+[ -d /app/conan-exiles/ConanSandbox/Saved/Config ] || mv /app/conan-exiles/ConanSandbox/Init /app/conan-exiles/ConanSandbox/Saved
 
 # Setup config files
 engineIniPath='/app/conan-exiles/ConanSandbox/Saved/Config/WindowsServer/Engine.ini'
@@ -38,5 +38,5 @@ cat >> $serverSettingsIniPath <<EOF
 AdminPassword = ${ADMINPASSWORD}
 EOF
 
-# Run the server
+# Run the Conan server
 xvfb-run --auto-servernum --server-args='-screen 0 640x480x24:32' wine64 ConanSandboxServer.exe -log
